@@ -13,7 +13,13 @@ async function connectToDatabase(): Promise<Db> {
   }
   
   if (!mongoClient) {
-    mongoClient = new MongoClient(CONNECTION_STRING);
+    mongoClient = new MongoClient(CONNECTION_STRING, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000,
+      family: 4
+    });
     await mongoClient.connect();
   }
   return mongoClient.db(DATABASE_NAME);
@@ -22,9 +28,16 @@ async function connectToDatabase(): Promise<Db> {
 export default async function getDatabaseCollection(
   collectionName: string,
 ): Promise<Collection> {
-  if (!database) {
-    database = await connectToDatabase();
+  try {
+    if (!database) {
+      database = await connectToDatabase();
+    }
+    
+    return database.collection(collectionName);
+  } catch (error) {
+    // Reset the client on connection error to force reconnection
+    mongoClient = null;
+    database = null;
+    throw error;
   }
-  
-  return database.collection(collectionName);
 } 
